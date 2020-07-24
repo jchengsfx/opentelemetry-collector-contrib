@@ -129,7 +129,8 @@ commands:
     steps:
       - when:
           condition:
-            equal: [master, << pipeline.git.branch >>]
+            not:
+              equal: [master, << pipeline.git.branch >>]
           steps:
             - run:
                 name: Generate GitHub Issue
@@ -138,123 +139,15 @@ commands:
 
 workflows:
   version: 2
-  stability-tests:
-    when: << pipeline.parameters.run-stability-tests >>
-    jobs:
-      - checkout-commit
-      - setup:
-          requires:
-            - checkout-commit
-      - cross-compile:
-          requires:
-            - setup
-      - run-stability-tests:
-          requires:
-            - cross-compile 
-      - publish-dev:
-          requires:
-            - run-stability-tests
-
-  build-publish:
-    when: << pipeline.parameters.run-build-publish >>
+  test:
     jobs:
       - setup:
           filters:
             tags:
               only: /.*/
-      - lint:
+      - issuegenerator-test:
           requires:
             - setup
-          filters:
-            tags:
-              only: /.*/
-      - build-examples:
-          requires:
-            - setup
-          filters:
-            tags:
-              only: /.*/
-      - cross-compile:
-          requires:
-            - setup
-          filters:
-            tags:
-              only: /.*/
-      - loadtest:
-          requires:
-            - cross-compile 
-          filters:
-            tags:
-              only: /.*/
-      - unit-tests:
-          requires:
-            - setup
-          filters:
-            tags:
-              only: /.*/
-      - windows-msi:
-          requires:
-            - cross-compile
-          filters:
-            tags:
-              only: /.*/
-      - publish-check:
-          requires:
-            - lint
-            - unit-tests
-            - integration-tests
-            - cross-compile
-            - loadtest
-            - windows-msi
-            - deb-package
-            - rpm-package
-      - publish-stable:
-          requires:
-            - lint
-            - unit-tests
-            - integration-tests
-            - cross-compile
-            - loadtest
-            - windows-msi
-            - deb-package
-            - rpm-package
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9].[0-9].[0-9]+.*/
-      - spawn-stability-tests-job:
-          requires:
-            - lint
-            - unit-tests
-            - loadtest
-            - integration-tests
-            - cross-compile
-          filters:
-            branches:
-              only: /master|release\/.+/
-            tags:
-              ignore: /.*/
-      - integration-tests:
-          filters:
-            tags:
-              only: /.*/
-      - build-package:
-          name: deb-package
-          package_type: deb
-          requires:
-            - cross-compile
-          filters:
-            tags:
-              only: /^v([0-9])+.([0-9])+.([0-9])+.*/
-      - build-package:
-          name: rpm-package
-          package_type: rpm
-          requires:
-            - cross-compile
-          filters:
-            tags:
-              only: /^v([0-9])+.([0-9])+.([0-9])+.*/
 
 jobs:
   setup:
@@ -505,3 +398,10 @@ jobs:
       - persist_to_workspace:
           root: ~/
           paths: project/dist/*.<< parameters.package_type >>
+
+  issuegenerator-test:
+    executor: golang
+    steps:
+      - restore_workspace
+      - run: exit 1
+      - github_issue_generator
